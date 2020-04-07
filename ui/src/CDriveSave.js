@@ -24,14 +24,14 @@ class CDriveSave extends React.Component{
     const cookies = new Cookies();
     const request = axios({
       method: 'POST',
-      url: `${this.props.specs.cdriveUrl}app/${this.props.specs.username}/blocker/api/save`,
+      url: `${this.props.specs.cdriveUrl}app/${this.props.specs.username}/featurizer/api/save`,
       data: {
         path: this.state.path,
         uid: this.props.uid,
         name: this.state.name
       },
       headers: {
-        'Authorization': `Bearer ${cookies.get('blocker_token')}`,
+        'Authorization': `Bearer ${cookies.get('featurizer_token')}`,
       }
     },);
     request.then(response => {

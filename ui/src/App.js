@@ -51,7 +51,7 @@ class App extends React.Component {
   }
   authenticateUser() {
     const cookies = new Cookies();
-    var accessToken = cookies.get('fgen_token');
+    var accessToken = cookies.get('featurizer_token');
     if (accessToken !== undefined) {
       this.getDriveObjects().then(driveObjects => this.setState({driveObjects: driveObjects}));
       this.setState({isLoggedIn: true});
@@ -59,7 +59,7 @@ class App extends React.Component {
     }
     var url = new URL(window.location.href);
     var code = url.searchParams.get("code");
-    var redirect_uri = `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/feature-vector-generator/`;
+    var redirect_uri = `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/featurizer/`;
     if (code == null) {
       window.location.href = `${this.state.specs.authUrl}o/authorize/?response_type=code&client_id=${this.state.specs.clientId}&redirect_uri=${redirect_uri}&state=1234xyz`;
     } else {
@@ -73,7 +73,7 @@ class App extends React.Component {
       });
       request.then(
         response => {
-          cookies.set('fgen_token', response.data.access_token);
+          cookies.set('featurizer_token', response.data.access_token);
           window.location.href = redirect_uri;
         }, err => {
         }
@@ -83,7 +83,7 @@ class App extends React.Component {
   getDriveObjects() {
     return new Promise(resolve => {
       const cookies = new Cookies();
-      var auth_header = 'Bearer ' + cookies.get('fgen_token');
+      var auth_header = 'Bearer ' + cookies.get('featurizer_token');
       const request = axios({
         method: 'GET',
         url: this.state.specs.cdriveApiUrl + "list-recursive/?path=users",
@@ -94,7 +94,7 @@ class App extends React.Component {
           resolve(response.data.driveObjects);
         }, err => {
           if(err.response.status === 401) {
-            cookies.remove('fgen_token');
+            cookies.remove('featurizer_token');
             window.location.reload(false);
           } else {
             resolve([]);
@@ -113,7 +113,7 @@ class App extends React.Component {
     const cookies = new Cookies();
     const request = axios({
       method: 'POST',
-      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/feature-vector-generator/api/generate`,
+      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/featurizer/api/generate`,
       data: {
         aPath: this.state.aPath,
         bPath: this.state.bPath,
@@ -123,7 +123,7 @@ class App extends React.Component {
         replicas: this.state.replicas,
       },
       headers: {
-        'Authorization': `Bearer ${cookies.get('fgen_token')}`,
+        'Authorization': `Bearer ${cookies.get('featurizer_token')}`,
       }
     });
     request.then(
@@ -139,19 +139,19 @@ class App extends React.Component {
     const cookies = new Cookies();
     axios({
       method: 'POST',
-      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/feature-vector-generator/api/abort`,
+      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/featurizer/api/abort`,
       data: {
         uid: this.state.uid,
       },
       headers: {
-        'Authorization': `Bearer ${cookies.get('fgen_token')}`,
+        'Authorization': `Bearer ${cookies.get('featurizer_token')}`,
       }
     });
   }
   fnStatusPoll() {
     const request = axios({
       method: 'GET',
-      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/feature-vector-generator/api/status?uid=${this.state.uid}`
+      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/featurizer/api/status?uid=${this.state.uid}`
     });
     request.then(
       response => {

@@ -44,7 +44,7 @@ function getTableUrl(tablePath, accessToken) {
       }
     };
     request(options, function(err, res, body) {
-      if(err || res.statusCode != 200) {
+      if(err || res.statusCode !== 200) {
         reject(err);
         return;
       }
@@ -94,7 +94,7 @@ function ensureFnActive(uid) {
         if(containerStatus === "Running") {
           resolve(true);
         } else if (containerStatus === "Error") {
-          setStatus(uid, "Error", "Could not create block function containers", true).then(reject);
+          setStatus(uid, "Error", "Could not create featurize function containers", true).then(reject);
         } else {
           setTimeout(waitForContainer, 500);
         }
@@ -134,7 +134,7 @@ function deleteFns(name) {
 }
 
 function getFnName(uid) {
-  return `blockfn-${process.env.COLUMBUS_USERNAME}-${uid}`;
+  return `featurizefn-${process.env.COLUMBUS_USERNAME}-${uid}`;
 }
 
 function collectLogs(uid) {
@@ -241,15 +241,15 @@ router.post('/generate', function(req, res) {
     return new Promise((resolve, reject) => {
       function callBlock(attemptNo) {
         var options = {
-          url: `http://${fnName}/generate/`,
+          url: `http://${fnName}/featurize/`,
           method: "POST",
           form: {
-            tuplePairs: JSON.stringify(tuplePairs),
+            candidateTuples: JSON.stringify(tuplePairs),
           }
         };
         request(options, function (err, res, body) {
           if(res && res.statusCode === 500) {
-            collectLogs().then(() => setStatus(uid, "Error", "Feature Gen function crashed", true)).then(() => deleteFns(fnName));
+            collectLogs(uid).then(() => setStatus(uid, "Error", "Feature Gen function crashed", true)).then(() => deleteFns(fnName));
           } else if(err || res.statusCode !== 200) {
             setTimeout(() => callBlock(attemptNo + 1), 500);
           } else {
@@ -280,20 +280,20 @@ router.post('/generate', function(req, res) {
     var complete = 0;
 
     function enumerateTuplePair(el) {
-      var aid = Object.keys(el)[1];
-      var bid = Object.keys(el)[2];
+      var aid = el[Object.keys(el)[1]];
+      var bid = el[Object.keys(el)[2]];
       let tuple = {
-        id: Object.keys(el)[0];
-        ...aTuples[aid],
-        ...bTuples[bid]
+        id: el[Object.keys(el)[0]],
+        ...aTuples[aid - 1],
+        ...bTuples[bid - 1]
       };
       return tuple;
     }
 
     function fnComplete(tuples) {
       complete++;
-      setStatus(uid, "Running", `Processed ${complete}/${nA*nB} chunks`, false);
-      if (complete === nA*nB) {
+      setStatus(uid, "Running", `Processed ${complete}/${nC} chunks`, false);
+      if (complete === nC) {
         saveOutput(tuples, `/storage/output/${uid}.csv`).then(() => blockComplete());
       } else if (inFlight < nC) {
         mapToContainer(cChunks[inFlight].map(el => enumerateTuplePair(el))).then(outs => fnComplete(outs));
@@ -304,7 +304,9 @@ router.post('/generate', function(req, res) {
       }
     }
     Array.from({length: 3*replicas}).forEach((el, i) => {
-      mapToContainer(cChunks[i].map(el => enumerateTuplePair(el))).then(outs => fnComplete(outs));
+      if (i<nC) {
+        mapToContainer(cChunks[i].map(el => enumerateTuplePair(el))).then(outs => fnComplete(outs));
+      }
     });
   }
 
@@ -312,21 +314,21 @@ router.post('/generate', function(req, res) {
     return;
   }
 
-  const aPromise = getTableUrl(aPath).then(url => parseTable(url), err => {
+  const aPromise = getTableUrl(aPath, accessToken).then(url => parseTable(url), err => {
     setStatus(uid, "Error", "Could not read table A", true);
     return new Promise((resolve, reject) => reject());
   });
-  const bPromise = getTableUrl(bPath).then(url => parseTable(url), err => {
+  const bPromise = getTableUrl(bPath, accessToken).then(url => parseTable(url), err => {
     setStatus(uid, "Error", "Could not read table B", true);
     return new Promise((resolve, reject) => reject());
   });
-  const cPromise = getTableUrl(cPath).then(url => parseTable(url), err => {
+  const cPromise = getTableUrl(cPath, accessToken).then(url => parseTable(url), err => {
     setStatus(uid, "Error", "Could not read table C", true);
   });
   Promise.all([aPromise, bPromise, cPromise]).then(values => {
     var tableA = values[0].map(tuple => {
       var newTuple = {};
-      Objects.keys(tuple).forEach(key => {
+      Object.keys(tuple).forEach(key => {
         var newKey = `l_${key}`;
         newTuple[newKey] = tuple[key];
       });
@@ -334,8 +336,8 @@ router.post('/generate', function(req, res) {
     });
     var tableB = values[1].map(tuple => {
       var newTuple = {};
-      Objects.keys(tuple).forEach(key => {
-        var newKey = `l_${key}`;
+      Object.keys(tuple).forEach(key => {
+        var newKey = `r_${key}`;
         newTuple[newKey] = tuple[key];
       });
       return newTuple;
@@ -345,7 +347,7 @@ router.post('/generate', function(req, res) {
     var cChunks = Array.from({length: nC}).map((x,i) => {
       return tableC.slice(i*clc, (i+1)*clc);
     });
-    setStatus(uid, "Running", "Creating block function containers", false);
+    setStatus(uid, "Running", "Creating function containers", false);
     createFns(containerUrl, fnName, replicas).then(success => ensureFnActive(uid), err => {
       return new Promise((resolve, reject) => reject());
     }).then(() => featureGen(tableA, tableB, cChunks), err => {

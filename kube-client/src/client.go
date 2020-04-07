@@ -140,7 +140,9 @@ func fnStatusHelper(fnName string) string {
 		return "Missing"
 	} else {
 		for _, item := range items {
-			if v := item.Status.ContainerStatuses[0].State; v.Running != nil {
+			if statuses := item.Status.ContainerStatuses; len(statuses) == 0 {
+				return "Missing"
+			} else if v := statuses[0].State; v.Running != nil {
 				return "Running"
 			} else if v.Waiting != nil && (v.Waiting.Reason == "ErrImagePull" || v.Waiting.Reason=="ImagePullBackOff" || v.Waiting.Reason=="CrashLoopBackOff") {
 				return "Error"
